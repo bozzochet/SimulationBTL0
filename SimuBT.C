@@ -232,9 +232,9 @@ double SingleTrial(int events, bool kNoDraw) {
     fitDUTSmeX->Draw();
   }
   smegaus->SetParameter(0, fitDUTSmeX->GetMaximum());
-  smegaus->SetParameter(1, 0.0);
-  smegaus->SetParLimits(2, 0.0, 10000.0*resoX);
-  smegaus->SetParameter(2, 1000.0*resoX);
+  smegaus->SetParameter(1, fitDUTSmeX->GetMean());
+  smegaus->SetParLimits(2, 0.0, 10.0*fitDUTSmeX->GetRMS());
+  smegaus->SetParameter(2, fitDUTSmeX->GetRMS());
   if (kNoDraw) {
     fitDUTSmeX->Fit(smegaus, "NQ", "L");
   }
@@ -244,12 +244,13 @@ double SingleTrial(int events, bool kNoDraw) {
   
   if (!kNoDraw) {
     TCanvas* cdrx = new TCanvas("DUTResidualX", "DUTResidualX");
-    fitDUTResX->GetYaxis()->SetRangeUser(0, 2.2*fitDUTResX->GetMaximum());
+    fitDUTResX->GetYaxis()->SetRangeUser(0, 1.1*fitDUTSmeX->GetMaximum());
     fitDUTResX->Draw();
   }
   resgaus->SetParameter(0, fitDUTResX->GetMaximum());
-  resgaus->SetParameter(1, 0.0);
-  resgaus->SetParameter(2, 1000.0*resoX);
+  resgaus->SetParameter(1, fitDUTResX->GetMean());
+  resgaus->SetParLimits(2, 0.0, 10.0*fitDUTResX->GetRMS());
+  resgaus->SetParameter(2, fitDUTResX->GetRMS());
   if (kNoDraw) {
     fitDUTResX->Fit(resgaus, "NQ", "L");
   }
