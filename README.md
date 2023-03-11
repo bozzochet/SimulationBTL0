@@ -1,7 +1,6 @@
 # SimulationBTL0
 
 ## Single trial (with plots)
-
 ```
 $> root
 root [0] .L SimuBT.C+
@@ -9,7 +8,8 @@ root [1] Single()
 DUT X) sigma measured: 10.969250, smearing measured: 4.511834
 DUT X) resolution: 9.998389
 ```
-
+that produces plots like:
+![alt text](./Images/singletrial.png)
 ## Many trials (only final plot)
 ```
 $> root
@@ -21,3 +21,5 @@ root [1] Full()
 3) (0.010007 -0.010000)/0.010000 = 0.000700
 ...
 ```
+that produces plot like:
+![alt text](./Images/1000trials.png)
