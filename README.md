@@ -16,6 +16,7 @@ DUT X) resolution: 9.998389
 ```
 
 ## Many trials (only final plot)
+```
 $> root
 root [0] .L SimuBT.C+
 Info in <TMacOSXSystem::ACLiC>: creating shared library /Users/bozzo/Library/CloudStorage/OneDrive-IstitutoNazionalediFisicaNucleare/Work/AMS-L0/SlideEVarie/./SimuBT_C.so
