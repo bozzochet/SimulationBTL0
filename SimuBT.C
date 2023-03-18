@@ -8,22 +8,32 @@
 double resoX = 0.01; //10 um
 double resoY = 0.01; //10 um
 double resoU = 0.01; //10 um
+double rotU = 45;//degrees
 
+void Single();
+void Full(int component=0);
 double SingleTrial(int events=1000000, bool kNoDraw=false, int component=0);
 
+//----
+ 
 void Single(){
   SingleTrial();
 }
 
-void Full(){
+void Full(int component){
   int trials=100;
 
+  double true_reso = 0.0;
+  // TODO: make it automatic. The SingleTrial function can return a struct with the "true reso" and the "meas reso"
+  if (component == 0) true_reso = resoX;
+  else if (component == 1) true_reso = resoU/TMath::Sin(TMath::DegToRad()*rotU);
+  
   TH1* resoXmeas = new TH1F("resoXmeas", "reasoXmeas", 100, -0.02, 0.02);
   resoXmeas->GetXaxis()->SetTitle("(#sigma_x measured - #sigma_x true) / #sigma_x true");
   resoXmeas->GetYaxis()->SetTitle("Trials");
   
   for (int ii=0; ii<trials; ii++) {
-    double meas = 0.001*SingleTrial(100000, true);
+    double meas = 0.001*SingleTrial(100000, true, component);
     resoXmeas->Fill((meas-resoX)/resoX);
     printf("%d) (%f -%f)/%f = %f\n", ii, meas, resoX, resoX, (meas-resoX)/resoX);
   }
@@ -56,7 +66,6 @@ double SingleTrial(int events, bool kNoDraw, int component) {
   const int nDUT = 2;
   double DUTZ[nDUT] = {1500.0, 1500.1};
   TString DUTK[nDUT] = {"X", "U"};
-  double rotU = 45;//degrees
   
   if (kShorten) {
     DUTZ[0] = 1250.0;
@@ -285,11 +294,22 @@ double SingleTrial(int events, bool kNoDraw, int component) {
 	  ytruth*TMath::Sin(TMath::DegToRad()*rotU);
 	double utrack = xtrack*TMath::Cos(TMath::DegToRad()*rotU) -
 	  ytrack*TMath::Sin(TMath::DegToRad()*rotU);
+	double vtruth = xtruth*TMath::Sin(TMath::DegToRad()*rotU) +
+	  ytruth*TMath::Cos(TMath::DegToRad()*rotU);
+	double vtrack = xtrack*TMath::Sin(TMath::DegToRad()*rotU) +
+	  ytrack*TMath::Cos(TMath::DegToRad()*rotU);
 	double umeas = gRandom->Gaus(utruth, resoU);
-	double xmeas = gRandom->Gaus(xtruth, resoX);
+	// we need a "v":
+	//	double vmeas = vtruth; //v from truth
+	//	double vmeas = vtrack; //v from track
+	double vmeas = gRandom->Gaus(vtruth, resoU); //v from another layer
+	double xmeas = umeas*TMath::Cos(TMath::DegToRad()*rotU) +
+	  vmeas*TMath::Sin(TMath::DegToRad()*rotU);
+	double ymeas = -umeas*TMath::Sin(TMath::DegToRad()*rotU) +
+	  vmeas*TMath::Cos(TMath::DegToRad()*rotU);
 	fitDUT[ii]->Fill(utrack);
-	/* fitDUTSmeX[ii]->Fill(1000.0*(xtrack - xtruth)); */
-	/* fitDUTResX[ii]->Fill(1000.0*(xmeas - xtrack)); */
+	fitDUTSmeX[ii]->Fill(1000.0*(xtrack - xtruth));
+	fitDUTResX[ii]->Fill(1000.0*(xmeas - xtrack));
       }
     }
 
