@@ -14,6 +14,7 @@ struct STResult {
   TString Type;
   double ExpResoX;//mm
   double MeasResoX;//mm
+  double MeasResoErrX;//mm
 };
 
 void Single();
@@ -45,9 +46,9 @@ std::vector<STResult> SingleTrial(int events=1000000, bool kNoDraw=false);
 */
 
 /*
-dx/dv = cosα;
-dv/dy = cosα/(1 - sin^2α);
---> dx/dy = (1 - sin^2α);
+  x = f(u,y) --> dx = dx/du * du + dx/dy * dY;
+  --> dx = du*cosα/(1 - sin^2α) + dy*sinα*cosα/(1 - sin^2α);
+  = du/cosα + dy*tanα
 */
 
 double Rotation(double x, double y, double angle, int component){
@@ -93,12 +94,15 @@ void Single(){
 
 void Full(){
   int trials=100;
+  //  int trials=1000;
+  //  int events=10000;//10k
+  int events=1000000;//1M
 
-  std::vector<STResult> _results = SingleTrial(100000, true);//first time to retrive number of "types"
+  std::vector<STResult> _results = SingleTrial(events, true);//first time to retrive number of "types"
 
   std::vector<TH1*> resoXmeas(_results.size());
   for (int rr=0; rr<((int)(_results.size())); rr++) {
-    resoXmeas[rr] = new TH1F(Form("resoXmeas_%d", rr), Form("reasoXmeas_%d (%s)", rr, _results[rr].Type.Data()), 100, -0.02, 0.02);
+    resoXmeas[rr] = new TH1F(Form("resoXmeas_%d", rr), Form("reasoXmeas_%d (%s)", rr, _results[rr].Type.Data()), 1000, -0.1, 0.1);
     resoXmeas[rr]->GetXaxis()->SetTitle("(#sigma_x measured - #sigma_x true) / #sigma_x true");
     resoXmeas[rr]->GetYaxis()->SetTitle("Trials");
   }
@@ -111,7 +115,7 @@ void Full(){
       printf("%d, %d) (%f -%f)/%f = %f\n", tt, rr, meas, exp, exp, (meas-exp)/exp);
     }
     if (tt!=(trials-1)) {//last time not needed...
-      _results = SingleTrial(100000, true);
+      _results = SingleTrial(events, true);
     }
   }
 
@@ -518,29 +522,56 @@ std::vector<STResult> SingleTrial(int events, bool kNoDraw) {
     double smeaYmeas = smegausY->GetParameter(2);
     double smeaXmeas = smegausX->GetParameter(2);
 
+    double sigmaXmeas_err = resgausX->GetParError(2);
+    double sigmaYmeas_err = resgausY->GetParError(2);
+    double smeaYmeas_err = smegausY->GetParError(2);
+    double smeaXmeas_err = smegausX->GetParError(2);
+    
     STResult _stresult;
 
     _stresult.Type = DUTK[ii];
     if (DUTK[ii] == "X") {
       _stresult.ExpResoX = resoX;
-      _stresult.MeasResoX = 0.001*TMath::Sqrt(TMath::Power(sigmaXmeas, 2.0) - TMath::Power(smeaXmeas, 2.0));
+      double measresoX = TMath::Sqrt(TMath::Power(sigmaXmeas, 2.0)
+				     - TMath::Power(smeaXmeas, 2.0)
+				     );
+      double measresoerrX = TMath::Sqrt(TMath::Power(sigmaXmeas*sigmaXmeas_err/measresoX, 2.0)
+						 + TMath::Power(smeaXmeas*smeaXmeas_err/measresoX, 2.0)
+						 );
       if (!kNoDraw) {
-	printf("DUT X %d) ", ii);
-	printf("sigma measured: %f, ", sigmaXmeas);
-	printf("smearing measured: %f\n", smeaXmeas);
-	printf("--> resolution: %f\n", _stresult.MeasResoX);
+	printf("DUT X %d (%s)) ", ii, DUTK[ii].Data());
+	printf("sigma measured: %f +- %f (μm), ", sigmaXmeas, sigmaXmeas_err);
+	printf("smearing measured: %f +- %f (μm)\n", smeaXmeas, smeaXmeas_err);
+	printf("--> resolution: %f +- %f (μm) - %f %%\n", measresoX, measresoerrX, 100.0*measresoerrX/measresoX);
       }
+      _stresult.MeasResoX = 0.001*measresoX;
+      _stresult.MeasResoErrX = 0.001*measresoerrX;
     }
     else if (DUTK[ii] == "U") {
-      _stresult.ExpResoX = resoU/TMath::Sin(TMath::DegToRad()*rotU);
-      _stresult.MeasResoX = 0.001*TMath::Sqrt(TMath::Power(sigmaXmeas, 2.0) - TMath::Power(smeaXmeas, 2.0) - TMath::Power(smeaYmeas, 2.0));
+      /*
+	x = f(u,y) --> dx = dx/du * du + dx/dy * dY;
+	--> dx = du*cosα/(1 - sin^2α) + dy*sinα*cosα/(1 - sin^2α);
+	= du/cosα + dy*tanα
+      */
+      _stresult.ExpResoX = resoU/TMath::Cos(TMath::DegToRad()*rotU);
+      double measresoX = TMath::Sqrt(TMath::Power(sigmaXmeas, 2.0)
+				     - TMath::Power(smeaXmeas, 2.0)
+				     - TMath::Power(TMath::Tan(TMath::DegToRad()*rotU)*smeaYmeas, 2.0)
+				     );
+      double measresoerrX = TMath::Sqrt(TMath::Power(sigmaXmeas*sigmaXmeas_err/measresoX, 2.0)
+					+ TMath::Power(smeaXmeas*smeaXmeas_err/measresoX, 2.0)
+					+ TMath::Power(TMath::Power(TMath::Tan(TMath::DegToRad()*rotU), 2.0)*smeaYmeas*smeaYmeas_err/measresoX, 2.0)
+					);
+
       if (!kNoDraw) {
-	printf("DUT X %d) ", ii);
-	printf("sigma measured: %f, ", sigmaXmeas);
-	printf("smearing X measured: %f, ", smeaXmeas);
-	printf("smearing Y measured: %f\n", smeaYmeas);
-	printf("--> resolution: %f\n", _stresult.MeasResoX);
+	printf("DUT X %d (%s)) ", ii, DUTK[ii].Data());
+	printf("sigma measured: %f +- %f (μm), ", sigmaXmeas, sigmaXmeas_err);
+	printf("smearing X measured: %f +- %f (μm)", smeaXmeas, smeaXmeas_err);
+	printf("smearing Y measured: %f +- %f (μm)\n", smeaYmeas, smeaYmeas_err);
+	printf("--> resolution: %f +- %f (μm) - %f %%\n", measresoX, measresoerrX, 100.0*measresoerrX/measresoX);
       }
+      _stresult.MeasResoX = 0.001*measresoX;
+      _stresult.MeasResoErrX = 0.001*measresoerrX;
     }
 
     resoXmeas.push_back(_stresult);
