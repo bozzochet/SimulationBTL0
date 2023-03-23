@@ -93,8 +93,8 @@ void Single(){
 }
 
 void Full(){
-  int trials=100;
-  //  int trials=1000;
+  //  int trials=100;
+  int trials=1000;
   //  int events=10000;//10k
   int events=1000000;//1M
 
@@ -130,10 +130,13 @@ void Full(){
 std::vector<STResult> SingleTrial(int events, bool kNoDraw) {
 
   // do not use the downstream telescope
-  bool kNoDowTel = false;
+  bool kNoDowTel =false;
 
   // half distances between Up - DUT - Down
   bool kShorten = false;
+
+  // double distances between Up - DUT - Down
+  bool kExtend = false;
   
   //------------
   
@@ -156,6 +159,10 @@ std::vector<STResult> SingleTrial(int events, bool kNoDraw) {
     DUTZ[0] = 1250.0;
     DUTZ[1] = 1250.1;
   }
+  else if (kExtend) {
+    DUTZ[0] = 2000.0;
+    DUTZ[1] = 2000.1;
+  }
   if (kNoDowTel) {
     DUTZ[0] = UpTelZ[nUpTel-1] + 20.0;
     DUTZ[1] = UpTelZ[nUpTel-1] + 20.1;
@@ -167,6 +174,12 @@ std::vector<STResult> SingleTrial(int events, bool kNoDraw) {
     double DowTelZShorter[nDowTel] = {1500.0, 1500.1, 1560.0, 1560.1};
     for (int ii=0; ii<nDowTel; ii++) {
       DowTelZ[ii] = DowTelZShorter[ii];
+    }
+  }
+  else if (kExtend) {
+    double DowTelZLonger[nDowTel] = {3000.0, 3000.1, 3060.0, 3060.1};
+    for (int ii=0; ii<nDowTel; ii++) {
+      DowTelZ[ii] = DowTelZLonger[ii];
     }
   }
   TString DowTelK[nDowTel] = {"X", "Y", "X", "Y"};
@@ -289,7 +302,7 @@ std::vector<STResult> SingleTrial(int events, bool kNoDraw) {
     fitDUTSmeY[ii]->SetLineColor(kBlue+1);
     fitDUTSmeY[ii]->SetMarkerColor(kBlue+1);
   }
-    
+
   for (int ii=0; ii<events; ii++) {
     
     double beampipex = gRandom->Gaus(0, sigmaBeamPipeX);
@@ -337,15 +350,70 @@ std::vector<STResult> SingleTrial(int events, bool kNoDraw) {
     TGraphErrors grX;
     TGraphErrors grY;
 
+    /*
+      just for double check:
+      ****************************
+
+      if y = q + mx:
+      
+      m = (mean(x*y) - mean(x)*mean(y)) / (mean(x^2) - mean(x)*mean(x))
+      q = (mean(x^2)*mean(y) - mean(x)*mean(x*y)) / (mean(x^2) - mean(x)*mean(x)) = mean(y) - m*mean(x)
+
+      if errors on y not all equal:
+      
+      mean(x) = sum(x_i/sigma_i^2)/sum(1/sigma_i^2)
+      mean(y) = sum(y_i/sigma_i^2)/sum(1/sigma_i^2)
+      sigma^2 = N/sum(1/sigma_i^2)
+      
+      S1 = sum(1/sigma_i^2)
+      Sz = sum(x_i/sigma_i^2)
+      Szz = sum(x_i*x_i/sigma_i^2)
+      Sx = sum(y_i/sigma_i^2)
+      Szx = sum(x_y*y_i/sigma_i^2)
+      Dz = mean(x^2) - mean(x)*mean(x)
+
+      U = k*Vmatrix
+      Vmatrix = mean(x^2)    -mean(x)
+                 -mean(x)       1
+
+
+      where
+      k = (sigma^2/(N*Dz))
+        = (N/sum(1/sigma_i^2))/(N*Dz))
+        = 1/(sum(1/sigma_i^2)*Dz))
+	= 1/(S1*Dz)
+
+      and so
+      mean(x) = sum(x_i/sigma_i^2)/sum(1/sigma_i^2) = Sz/S1
+      mean(x^2) = sum(x_i*x_i/sigma_i^2)/sum(1/sigma_i^2) = Szz/S1 
+      
+      -->
+      sigma^2(q): U00 = k*mean(x^2)
+      sigma^2(m): U11 = k
+      mixed_term: U01 = U10 = -k*mean(x)
+
+      -->
+      sigma^2(y) = sigma^2(q) + x^2*sigma^2(m) + 2x*mixed_term
+      sigma^2(y) = U00 + U11*x^2 + 2x*U01
+     */
+    double S1 = 0, Sz = 0, Szz = 0, Sx = 0, Szx = 0;
+    
     for (int ii=0; ii<nUpTel; ii++) {
       if (UpTelK[ii] == "X") {
-	double ut = gRandom->Gaus(mctX->Eval(UpTelZ[ii]), resoX);
-	grX.SetPoint(grX.GetN(), UpTelZ[ii], ut);
+	double z = UpTelZ[ii];
+	double x = gRandom->Gaus(mctX->Eval(z), resoX);
+	grX.SetPoint(grX.GetN(), z, x);
 	grX.SetPointError(grX.GetN()-1, 0.0, resoX);
+	S1 += 1.0/TMath::Power(resoX, 2.0);
+	Sz += z/TMath::Power(resoX, 2.0);
+	Szz += z*z/TMath::Power(resoX, 2.0);
+	Sx += x/TMath::Power(resoX, 2.0);
+	Szx += z*x/TMath::Power(resoX, 2.0);
       }
       if (UpTelK[ii] == "Y") {
-	double ut = gRandom->Gaus(mctY->Eval(UpTelZ[ii]), resoY);
-	grY.SetPoint(grY.GetN(), UpTelZ[ii], ut);
+	double z = UpTelZ[ii];
+	double y = gRandom->Gaus(mctY->Eval(z), resoY);
+	grY.SetPoint(grY.GetN(), z, y);
 	grY.SetPointError(grY.GetN()-1, 0.0, resoY);
       }
     }
@@ -353,20 +421,50 @@ std::vector<STResult> SingleTrial(int events, bool kNoDraw) {
     if (!kNoDowTel) {
       for (int ii=0; ii<nDowTel; ii++) {
 	if (DowTelK[ii] == "X") {
-	  double dt = gRandom->Gaus(mctX->Eval(DowTelZ[ii]), resoX);
-	  grX.SetPoint(grX.GetN(), DowTelZ[ii], dt);
+	  double z = DowTelZ[ii];
+	  double x = gRandom->Gaus(mctX->Eval(z), resoX);
+	  grX.SetPoint(grX.GetN(), z, x);
 	  grX.SetPointError(grX.GetN()-1, 0.0, resoX);
+	  S1 += 1.0/TMath::Power(resoX, 2.0);
+	  Sz += z/TMath::Power(resoX, 2.0);
+	  Szz += z*z/TMath::Power(resoX, 2.0);
+	  Sx += x/TMath::Power(resoX, 2.0);
+	  Szx += z*x/TMath::Power(resoX, 2.0);
 	}
 	else if (DowTelK[ii] == "Y") {
-	  double dt = gRandom->Gaus(mctY->Eval(DowTelZ[ii]), resoY);
-	  grY.SetPoint(grY.GetN(), DowTelZ[ii], dt);
+	  double z = DowTelZ[ii];
+	  double y = gRandom->Gaus(mctY->Eval(z), resoY);
+	  grY.SetPoint(grY.GetN(), z, y);
 	  grY.SetPointError(grY.GetN()-1, 0.0, resoY);
 	}
       }
     }
 
+    double Dz = S1 * Szz - Sz * Sz;
+    double X0 = (Sx * Szz - Sz * Szx) / Dz;
+    double mX = (S1 * Szx - Sz * Sx) / Dz;
+    double X0err = TMath::Sqrt(Szz / Dz);
+    double mXerr = TMath::Sqrt(S1 / Dz);
+
+    double meanz = Sz/S1;
+    double meanzsq = Szz/S1;
+    double Dz_plain = meanzsq - meanz*meanz; 
+    double k = 1.0/(S1*Dz_plain);
+    //    printf("%f %f %f --> %E\n", meanz, meanzsq, Dz_plain, k);
+
+    double U00 = k*meanzsq;
+    double U11 = k;
+    double U01 = -k*meanz;
+    
     grX.Fit(fitX, "NQ");
     grY.Fit(fitY, "NQ");
+
+    /*
+    printf("%f %f\n", fitX->GetParameter(0), X0);
+    printf("%f %f\n", fitX->GetParameter(1), mX);
+    printf("%f %f\n", fitX->GetParError(0), X0err);
+    printf("%f %f\n", fitX->GetParError(1), mXerr);
+    */
 
     fitBeamPipeX->Fill(fitX->Eval(BeamPipeZ));
     fitBeamPipeY->Fill(fitY->Eval(BeamPipeZ));
@@ -375,15 +473,18 @@ std::vector<STResult> SingleTrial(int events, bool kNoDraw) {
 
     for (int ii=0; ii<nDUT; ii++) {
       if (DUTK[ii] == "X") {
-	double xtruth = mctX->Eval(DUTZ[ii]);
-	double xtrack = fitX->Eval(DUTZ[ii]);
+	double z = DUTZ[ii];
+	double xtruth = mctX->Eval(z);
+	double xtrack = fitX->Eval(z);
 	double xmeas = gRandom->Gaus(xtruth, resoX);
-	double ytruth = mctY->Eval(DUTZ[ii]);
-	double ytrack = fitY->Eval(DUTZ[ii]);
+	double ytruth = mctY->Eval(z);
+	double ytrack = fitY->Eval(z);
 	fitDUT[ii]->Fill(xtrack);
 	fitDUTSmeX[ii]->Fill(1000.0*(xtrack - xtruth));
 	fitDUTResX[ii]->Fill(1000.0*(xmeas - xtrack));
 	fitDUTSmeY[ii]->Fill(1000.0*(ytrack - ytruth));
+	double sigmaxsq = U00 + U11*z*z + 2*z*U01;
+	//	printf("%f (μm)\n", 1000.0*TMath::Sqrt(sigmaxsq));
       }
       else if (DUTK[ii] == "U") {
 	double xtruth = mctX->Eval(DUTZ[ii]);
@@ -566,7 +667,7 @@ std::vector<STResult> SingleTrial(int events, bool kNoDraw) {
       if (!kNoDraw) {
 	printf("DUT X %d (%s)) ", ii, DUTK[ii].Data());
 	printf("sigma measured: %f +- %f (μm), ", sigmaXmeas, sigmaXmeas_err);
-	printf("smearing X measured: %f +- %f (μm)", smeaXmeas, smeaXmeas_err);
+	printf("smearing X measured: %f +- %f (μm), ", smeaXmeas, smeaXmeas_err);
 	printf("smearing Y measured: %f +- %f (μm)\n", smeaYmeas, smeaYmeas_err);
 	printf("--> resolution: %f +- %f (μm) - %f %%\n", measresoX, measresoerrX, 100.0*measresoerrX/measresoX);
       }
